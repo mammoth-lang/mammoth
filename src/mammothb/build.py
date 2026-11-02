@@ -4,22 +4,23 @@ from pathlib import Path
 
 import rich
 
-from src.zelkelc.ast.parser import Parser
-from src.zelkelc.codegen.codegen import Codegen
-from src.zelkelc.expander.expander import Expander
-from src.zelkelc.lexer.tokenizer import lex
-from src.zelkelc.validator.validator import Validator
+from src.mammothc.ast.parser import Parser
+from src.mammothc.codegen.codegen import Codegen
+from src.mammothc.expander.expander import Expander
+from src.mammothc.lexer.tokenizer import lex
+from src.mammothc.validator.validator import Validator
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CLANG_FLAGS = ["-Wno-unused-command-line-argument", "-Wno-override-module"]
 ids = itertools.count()
 
+
 def _resolve_project_root() -> Path:
     candidates = [Path.cwd(), PROJECT_ROOT]
     for candidate in candidates:
-        if (candidate / "src" / "main.zk").exists():
+        if (candidate / "src" / "main.mam").exists():
             return candidate
-        if (candidate / "main.zk").exists():
+        if (candidate / "main.mam").exists():
             return candidate
     return PROJECT_ROOT
 
@@ -28,7 +29,7 @@ def build_package(build_mode: str, config: dict[str, any], debug_info: bool):
     project_root = _resolve_project_root()
     source_path = None
     for base in (project_root, Path.cwd(), PROJECT_ROOT):
-        for candidate in (base / "src" / "main.zk", base / "main.zk"):
+        for candidate in (base / "src" / "main.mam", base / "main.mam"):
             if candidate.exists():
                 source_path = candidate
                 break
@@ -47,13 +48,18 @@ def build_package(build_mode: str, config: dict[str, any], debug_info: bool):
     parser = Parser(tokens, 0, ids)
     ast = parser.parse()
     if debug_info:
+        print("AST (Pass 1)")
         rich.print(ast)
 
     ast = Expander(ids).run(ast)
     if debug_info:
+        print("AST Pass 2, Exapnder")
         rich.print(ast)
 
     Validator(ast)
+    if debug_info:
+        print("AST Pass 3, Validator")
+        rich.print(ast)
 
     codegen = Codegen(ast)
     ir = codegen.generate()

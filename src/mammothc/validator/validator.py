@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from src.zelkelc.ast import types
-from src.zelkelc.validator import scope
+from src.mammothc.ast import types
+from src.mammothc.validator import scope
 
 
 class SemanticCheckFailed(Exception):

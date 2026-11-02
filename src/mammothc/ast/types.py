@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass
 
-from src.zelkelc.lexer import token
+from src.mammothc.lexer import token
 
 
 @dataclass
@@ -166,6 +166,12 @@ class FunctionCall:
     irname: str
     typ: Value
     args: list[Expression]
+
+
+@dataclass
+class Pointer:
+    pointee: Value
+    typ: type[Value]
 
 
 Value = (

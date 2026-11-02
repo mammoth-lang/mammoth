@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src.zelkelc.ast import types
+from src.mammothc.ast import types
 
 
 @dataclass
@@ -183,7 +183,9 @@ class ScopeChecker:
                     method_table: dict[str, list[FunctionSignature]] = {}
                     for method in methods:
                         if "self" in method.args:
-                            method.args["self"] = types.Class(name, irname)
+                            method.args["self"] = types.Pointer(
+                                types.Class(name, irname), types.Class
+                            )
 
                         signature = FunctionSignature(
                             name=method.name,
@@ -257,7 +259,7 @@ class ScopeChecker:
             function_scope.values[arg_name] = ValueSignature(
                 name=arg_name,
                 irname=arg_name,
-                mutable=True,  # TODO: should all arguments be mutable?
+                mutable=False,
                 typ=arg_type,
             )
 
@@ -290,30 +292,33 @@ class ScopeChecker:
                         typ=child.typ,
                     )
 
-                case types.ValueAssignment():  # TODO: This only checks the root of the possible classpath, need a reusable check reference path thing...
-                    if child.reference.name not in function_scope.values:
-                        self._error(
-                            f"Variable '{child.name} is undefined in function '{fn.name}'"
-                        )
+                case types.ValueAssignment():
+                    reference = self.get_value_reference(
+                        child.reference, function_scope
+                    )
+                    if reference is None:
                         continue
 
-                    if not function_scope.values[child.reference.name].mutable:
-                        self._error(f"Variable '{child.reference.name}' is immutable")
+                    is_member = isinstance(child.reference, types.ClassPath)
+                    if not reference.mutable and not (
+                        is_member and fn.label == "constr"
+                    ):
+                        self._error(f"Variable '{reference.name}' is immutable")
                         continue
 
                     expression_type = self._infer_expression_type(
                         child.expr, function_scope
                     )
                     if expression_type is not None and not self._same_type(
-                        expression_type, function_scope.values[child.reference.name].typ
+                        expression_type, reference.typ
                     ):
                         self._error(
-                            f"Type mismatch for '{child.reference.name}' in function '{fn.name}': "
-                            f"expected {self._type_name(function_scope.values[child.reference.name].typ)}, got {self._type_name(expression_type)}"
+                            f"Type mismatch for '{reference.name}' in function '{fn.name}': "
+                            f"expected {self._type_name(reference.typ)}, got {self._type_name(expression_type)}"
                         )
 
                     child.typ = expression_type
-                    child.irname = function_scope.values[child.reference.name].irname
+                    child.irname = reference.irname
                     continue
 
                 case types.ReturnStatement():
@@ -374,6 +379,54 @@ class ScopeChecker:
 
         if not has_return and fn.typ is not types.Void:
             self._error(f"Function '{fn.name}' has no return statement")
+
+    def get_value_reference(
+        self, path: types.ClassPath | types.VariableRef, scope: Scope
+    ) -> ValueSignature | MemberSignature | None:
+        if isinstance(path, types.VariableRef):
+            signature = scope.resolve_variable(path.name)
+            if signature is None:
+                self._error(f"Variable '{path.name}' is undefined in scope")
+            return signature
+
+        # ClassPath(name="a", child=ClassPath(name="b", child=VariableRef("c")))
+        # means a.b.c: `a` is a variable, `b` and `c` are members.
+        current: ValueSignature | MemberSignature | None = scope.resolve_variable(
+            path.name
+        )
+        if current is None:
+            self._error(f"Variable '{path.name}' is undefined in scope")
+            return None
+
+        owner_name = path.name
+        node = path.child
+        while True:
+            class_sig = self._class_of(current.typ, scope)
+            if class_sig is None:
+                self._error(
+                    f"'{owner_name}' is not a class instance, "
+                    f"cannot access member '{node.name}'"
+                )
+                return None
+
+            member = class_sig.members.get(node.name)
+            if member is None:
+                self._error(f"Class '{class_sig.name}' has no member '{node.name}'")
+                return None
+
+            if isinstance(node, types.VariableRef):
+                return member
+
+            current = member
+            owner_name = node.name
+            node = node.child
+
+    def _class_of(self, typ: object, scope: Scope) -> ClassSignature | None:
+        while isinstance(typ, types.Pointer):  # `self` is Pointer(Class)
+            typ = typ.pointee
+        if isinstance(typ, types.Class):
+            return scope.classes.get(typ.name)
+        return None
 
     def _infer_expression_type(
         self, expr: types.Expression, active_scope: Scope
@@ -466,7 +519,7 @@ class ScopeChecker:
     def _same_type(self, left: object, right: object) -> bool:
         return self._type_token(left) == self._type_token(right)
 
-    def _type_token(self, typ: object) -> str:        
+    def _type_token(self, typ: object) -> str:
         if typ is types.Integer64 or isinstance(typ, types.Integer64):
             return "i64"
         if typ is types.Float64 or isinstance(typ, types.Float64):

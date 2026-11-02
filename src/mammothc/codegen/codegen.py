@@ -1,7 +1,7 @@
 import struct
 
-from src.zelkelc.ast import types
-from src.zelkelc.expander.expander import render_llvm
+from src.mammothc.ast import types
+from src.mammothc.expander.expander import render_llvm
 
 
 class GeneratorError(Exception):
@@ -66,7 +66,7 @@ class Codegen:
     def gen_main_function(self):
         self.ir.bottom += "define i32 @main() {\n"
         self.ir.bottom += "entry:\n"
-        self.ir.bottom += "call void @zkmain()\n"
+        self.ir.bottom += "call void @mammoth_main()\n"
         self.ir.bottom += "ret i32 0\n"
         self.ir.bottom += "}\n"
 
@@ -86,7 +86,7 @@ class Codegen:
         return (
             prefix + ("\n" if prefix and not prefix.endswith("\n") else "") + rendered
         )
-        
+
     def gen_class_declaration(self, node: types.ClassDeclaration):
         members_str = ""
         for i, m in enumerate(node.members):
@@ -158,7 +158,7 @@ class Codegen:
             case types.Integer64:
                 ir += f"\nstore i64 {operand}, i64* %{node.irname}, align 8"
             case types.Float64:
-                ir += f"\nstore double {operand}, double* %{node.irnmae}, align 8"
+                ir += f"\nstore double {operand}, double* %{node.irname}, align 8"
             case _:
                 raise GeneratorError(
                     f"gen_value_assignment() for {node.typ} is unimplemented"
@@ -226,6 +226,8 @@ class Codegen:
             return "void"
         if typ is types.Class or isinstance(typ, types.Class):
             return f"%{typ.irname}*"
+        if typ is types.Pointer or isinstance(typ, types.Pointer):
+            return "ptr"
         raise GeneratorError(
             f"Cannot convert type {typ} to llvm ir (was the AST validated?)"
         )

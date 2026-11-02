@@ -2,9 +2,9 @@ import copy
 import re
 from itertools import count
 
-from src.zelkelc.ast import types
-from src.zelkelc.ast.parser import Parser, SyntaxError
-from src.zelkelc.lexer import token
+from src.mammothc.ast import types
+from src.mammothc.ast.parser import Parser, SyntaxError
+from src.mammothc.lexer import token
 
 
 class ExpanderError(Exception):

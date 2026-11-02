@@ -1,5 +1,5 @@
 class MyClass {
-    val prop: i64
+    var prop: i64
 
     fn new(self, prop: i64) :constr -> void {
         self.prop = prop

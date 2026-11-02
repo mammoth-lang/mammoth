@@ -1,4 +1,4 @@
-from src.zelkelc.lexer import token
+from src.mammothc.lexer import token
 
 
 class TokenError(Exception):
